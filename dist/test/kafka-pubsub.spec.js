@@ -14,8 +14,8 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     function step(op) {
         if (f) throw new TypeError("Generator is already executing.");
         while (_) try {
-            if (f = 1, y && (t = y[op[0] & 2 ? "return" : op[0] ? "throw" : "next"]) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [0, t.value];
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
             switch (op[0]) {
                 case 0: case 1: t = op; break;
                 case 4: _.label++; return { value: op[1], done: false };
@@ -42,20 +42,18 @@ var mockProducer = jest.fn(function () { return ({
     write: mockWrite
 }); });
 var mockConsumer = jest.fn(function () { });
-var topic = 'test-topic';
-var host = 'localhost';
-var port = '9092';
+var topics = ['test-topic1', 'test-topic2'];
+var host = 'localhost:9231';
 var pubsub = new index_1.KafkaPubSub({
-    topic: topic,
-    host: host,
-    port: port,
+    topics: topics,
+    host: host
 });
 describe('KafkaPubSub', function () {
     it('should create producer/consumers correctly', function () {
         var onMessage = jest.fn();
         var testChannel = 'testChannel';
-        expect(mockProducer).toBeCalledWith(topic);
-        expect(mockConsumer).toBeCalledWith(topic);
+        expect(mockProducer).toBeCalledWith(topics);
+        expect(mockConsumer).toBeCalledWith(topics);
     });
     it('should subscribe and publish messages correctly', function () { return __awaiter(_this, void 0, void 0, function () {
         var channel, onMessage, payload, subscription;
@@ -71,7 +69,7 @@ describe('KafkaPubSub', function () {
                     return [4, pubsub.subscribe(channel, onMessage)];
                 case 1:
                     subscription = _a.sent();
-                    pubsub.publish(payload);
+                    pubsub.publish(channel, payload);
                     expect(mockWrite).toBeCalled();
                     expect(mockWrite).toBeCalledWith(new Buffer(JSON.stringify(payload)));
                     return [2];

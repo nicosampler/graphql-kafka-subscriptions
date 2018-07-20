@@ -1,13 +1,4 @@
 "use strict";
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) if (e.indexOf(p[i]) < 0)
-            t[p[i]] = s[p[i]];
-    return t;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 var Kafka = require("node-rdkafka");
 var Logger = require("bunyan");
@@ -20,75 +11,77 @@ var defaultLogger = Logger.createLogger({
 });
 var KafkaPubSub = (function () {
     function KafkaPubSub(options) {
+        var _this = this;
+        this.createConsumer = function (topics) {
+            var kafkaConsumer = Kafka.KafkaConsumer;
+            topics.map(function (topic) {
+                debugger;
+                var groupId = _this.options.groupId || Math.ceil(Math.random() * 9999);
+                var consumer = kafkaConsumer.createReadStream({
+                    'group.id': "kafka-group-" + groupId,
+                    'metadata.broker.list': _this.options.host
+                }, {}, {
+                    topics: [topic]
+                });
+                consumer.on('data', function (message) {
+                    var parsedMessage = JSON.parse(message.value.toString());
+                    _this.onMessage(topic, parsedMessage);
+                });
+                consumer.on('error', function (err) {
+                    _this.logger.error(err, 'Error in our kafka stream');
+                });
+            });
+        };
         this.options = options;
         this.subscriptionMap = {};
-        this.channelSubscriptions = {};
-        this.consumer = this.createConsumer(this.options.topic);
+        this.subscriptionsByTopic = {};
+        this.producers = {};
         this.logger = child_logger_1.createChildLogger(this.options.logger || defaultLogger, 'KafkaPubSub');
+        this.subscriptionIndex = 0;
+        this.createConsumer(this.options.topics);
     }
-    KafkaPubSub.prototype.publish = function (payload) {
-        this.producer = this.producer || this.createProducer(this.options.topic);
-        return this.producer.write(new Buffer(JSON.stringify(payload)));
+    KafkaPubSub.prototype.asyncIterator = function (triggers) {
+        return new pubsub_async_iterator_1.PubSubAsyncIterator(this, triggers);
     };
-    KafkaPubSub.prototype.subscribe = function (channel, onMessage, options) {
-        var index = Object.keys(this.subscriptionMap).length;
-        this.subscriptionMap[index] = [channel, onMessage];
-        this.channelSubscriptions[channel] = (this.channelSubscriptions[channel] || []).concat([
+    KafkaPubSub.prototype.subscribe = function (topic, onMessageCb) {
+        var index = this.subscriptionIndex;
+        this.subscriptionIndex++;
+        this.subscriptionMap[index] = { topic: topic, onMessageCb: onMessageCb };
+        this.subscriptionsByTopic[topic] = (this.subscriptionsByTopic[topic] || []).concat([
             index
         ]);
         return Promise.resolve(index);
     };
     KafkaPubSub.prototype.unsubscribe = function (index) {
-        var channel = this.subscriptionMap[index][0];
-        this.channelSubscriptions[channel] = this.channelSubscriptions[channel].filter(function (subId) { return subId !== index; });
+        var topic = this.subscriptionMap[index].topic;
+        this.subscriptionsByTopic[topic] = this.subscriptionsByTopic[topic].filter(function (current) { return current !== index; });
     };
-    KafkaPubSub.prototype.asyncIterator = function (triggers) {
-        return new pubsub_async_iterator_1.PubSubAsyncIterator(this, triggers);
+    KafkaPubSub.prototype.publish = function (topic, message) {
+        var producer = this.producers[topic] || this.createProducer(topic);
+        return producer.write(new Buffer(JSON.stringify(message)));
     };
-    KafkaPubSub.prototype.onMessage = function (channel, message) {
-        var subscriptions = this.channelSubscriptions[channel];
+    KafkaPubSub.prototype.onMessage = function (topic, message) {
+        var subscriptions = this.subscriptionsByTopic[topic];
         if (!subscriptions) {
             return;
         }
         for (var _i = 0, subscriptions_1 = subscriptions; _i < subscriptions_1.length; _i++) {
-            var subId = subscriptions_1[_i];
-            var _a = this.subscriptionMap[subId], cnl = _a[0], listener = _a[1];
-            listener(message);
+            var index = subscriptions_1[_i];
+            var onMessageCb = this.subscriptionMap[index].onMessageCb;
+            onMessageCb(message);
         }
-    };
-    KafkaPubSub.prototype.brokerList = function () {
-        return this.options.host.match(',') ? this.options.host : this.options.host + ":" + this.options.port;
     };
     KafkaPubSub.prototype.createProducer = function (topic) {
         var _this = this;
-        var producer = Kafka.Producer.createWriteStream({
-            'metadata.broker.list': this.brokerList()
+        var kafkaProducer = Kafka.Producer;
+        var producer = kafkaProducer.createWriteStream({
+            'metadata.broker.list': this.options.host
         }, {}, { topic: topic });
         producer.on('error', function (err) {
             _this.logger.error(err, 'Error in our kafka stream');
         });
+        this.producers[topic] = producer;
         return producer;
-    };
-    KafkaPubSub.prototype.createConsumer = function (topic) {
-        var _this = this;
-        var groupId = this.options.groupId || Math.ceil(Math.random() * 9999);
-        var consumer = Kafka.KafkaConsumer.createReadStream({
-            'group.id': "kafka-group-" + groupId,
-            'metadata.broker.list': this.brokerList(),
-        }, {}, {
-            topics: [topic]
-        });
-        consumer.on('data', function (message) {
-            var parsedMessage = JSON.parse(message.value.toString());
-            if (parsedMessage.channel) {
-                var channel = parsedMessage.channel, payload = __rest(parsedMessage, ["channel"]);
-                _this.onMessage(parsedMessage.channel, payload);
-            }
-            else {
-                _this.onMessage(topic, parsedMessage);
-            }
-        });
-        return consumer;
     };
     return KafkaPubSub;
 }());
