@@ -134,7 +134,6 @@ export class KafkaPubSub implements PubSubEngine {
       }
     );
     consumer.on('data', message => {
-      console.log(message);
       let parsedMessage = JSON.parse(message.value.toString());
       this.onMessage(message.topic, parsedMessage);
     });
