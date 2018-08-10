@@ -123,7 +123,6 @@ export class KafkaPubSub implements PubSubEngine {
     } = Kafka.KafkaConsumer as any;
 
     topics.map(topic => {
-      debugger;
       const groupId = this.options.groupId || Math.ceil(Math.random() * 9999);
       const consumer = kafkaConsumer.createReadStream(
         {
