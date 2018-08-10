@@ -43,7 +43,7 @@ export class KafkaPubSub implements PubSubEngine {
     this.options = options;
     this.subscriptionMap = {};
     this.subscriptionsByTopic = {};
-    this.producers = {}
+    this.producers = {};
     this.logger = createChildLogger(
       this.options.logger || defaultLogger,
       'KafkaPubSub'
@@ -122,26 +122,24 @@ export class KafkaPubSub implements PubSubEngine {
       createReadStream: (conf: any, topicConf: any, streamOptions: any) => any;
     } = Kafka.KafkaConsumer as any;
 
-    topics.map(topic => {
-      debugger;
-      const groupId = this.options.groupId || Math.ceil(Math.random() * 9999);
-      const consumer = kafkaConsumer.createReadStream(
-        {
-          'group.id': `kafka-group-${groupId}`,
-          'metadata.broker.list': this.options.host
-        },
-        {},
-        {
-          topics: [topic]
-        }
-      );
-      consumer.on('data', message => {
-        let parsedMessage = JSON.parse(message.value.toString());
-        this.onMessage(topic, parsedMessage);
-      });
-      consumer.on('error', err => {
-        this.logger.error(err, 'Error in our kafka stream');
-      });
+    const groupId = this.options.groupId || Math.ceil(Math.random() * 9999);
+    const consumer = kafkaConsumer.createReadStream(
+      {
+        'group.id': `kafka-group-${groupId}`,
+        'metadata.broker.list': this.options.host
+      },
+      {},
+      {
+        topics
+      }
+    );
+    consumer.on('data', message => {
+      console.log(message);
+      let parsedMessage = JSON.parse(message.value.toString());
+      this.onMessage(message.topic, parsedMessage);
     });
-  }
+    consumer.on('error', err => {
+      this.logger.error(err, 'Error in our kafka stream');
+    });
+  };
 }

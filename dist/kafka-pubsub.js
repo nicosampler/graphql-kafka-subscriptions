@@ -14,22 +14,19 @@ var KafkaPubSub = (function () {
         var _this = this;
         this.createConsumer = function (topics) {
             var kafkaConsumer = Kafka.KafkaConsumer;
-            topics.map(function (topic) {
-                debugger;
-                var groupId = _this.options.groupId || Math.ceil(Math.random() * 9999);
-                var consumer = kafkaConsumer.createReadStream({
-                    'group.id': "kafka-group-" + groupId,
-                    'metadata.broker.list': _this.options.host
-                }, {}, {
-                    topics: [topic]
-                });
-                consumer.on('data', function (message) {
-                    var parsedMessage = JSON.parse(message.value.toString());
-                    _this.onMessage(topic, parsedMessage);
-                });
-                consumer.on('error', function (err) {
-                    _this.logger.error(err, 'Error in our kafka stream');
-                });
+            var groupId = _this.options.groupId || Math.ceil(Math.random() * 9999);
+            var consumer = kafkaConsumer.createReadStream({
+                'group.id': "kafka-group-" + groupId,
+                'metadata.broker.list': _this.options.host
+            }, {}, {
+                topics: topics
+            });
+            consumer.on('data', function (message) {
+                var parsedMessage = JSON.parse(message.value.toString());
+                _this.onMessage(message.topic, parsedMessage);
+            });
+            consumer.on('error', function (err) {
+                _this.logger.error(err, 'Error in our kafka stream');
             });
         };
         this.options = options;
